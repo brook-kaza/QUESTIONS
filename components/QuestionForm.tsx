@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { CATEGORIES, QuestionCategory } from '@/types/question';
 import { submitQuestion } from '@/lib/questions-service';
-import { Send, CheckCircle2, AlertCircle, Sparkles, User, MessageSquare, Loader2, ArrowRight } from 'lucide-react';
+import { Send, CheckCircle2, AlertCircle, Sparkles, User, MessageSquare, Loader2, ArrowRight, WifiOff } from 'lucide-react';
 import Link from 'next/link';
 
 export default function QuestionForm() {
@@ -14,14 +14,48 @@ export default function QuestionForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [isOnline, setIsOnline] = useState(true);
 
   const minChars = 10;
+  const maxChars = 1000;
   const currentChars = content.trim().length;
-  const isFormValid = currentChars >= minChars;
+  const isFormValid = currentChars >= minChars && currentChars <= maxChars && cooldownSeconds === 0;
+
+  // Track online status
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsOnline(navigator.onLine);
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Cooldown timer
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setCooldownSeconds((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownSeconds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid || isSubmitting) return;
+
+    if (!navigator.onLine) {
+      setErrorMessage('የበይነ-መረብ (Internet) ግንኙነት የለም። እባክዎ መስመር ሲመጣ እንደገና ይሞክሩ።');
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage('');
@@ -36,6 +70,8 @@ export default function QuestionForm() {
 
     if (res.success) {
       setIsSuccess(true);
+      // Set 15-second cooldown to prevent spamming
+      setCooldownSeconds(15);
       // Fire festive celebration confetti
       try {
         confetti({
@@ -62,6 +98,14 @@ export default function QuestionForm() {
 
   return (
     <div className="w-full max-w-xl mx-auto px-4 py-6 sm:py-10">
+      {/* Offline banner */}
+      {!isOnline && (
+        <div className="mb-4 p-3 bg-red-500 text-white text-xs sm:text-sm font-semibold rounded-xl flex items-center justify-center gap-2 shadow-sm animate-pulse">
+          <WifiOff className="w-4 h-4 shrink-0" />
+          <span>የበይነ-መረብ (Internet) ግንኙነት ተቋርጧል።</span>
+        </div>
+      )}
+
       {/* Header section */}
       <header className="text-center mb-8">
         <div className="inline-flex items-center justify-center gap-2 px-3 py-1.5 mb-3 rounded-full bg-amber-50 border border-amber-200/80 text-amber-800 text-xs sm:text-sm font-semibold tracking-wide shadow-xs">
@@ -103,9 +147,18 @@ export default function QuestionForm() {
               <button
                 type="button"
                 onClick={handleReset}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-semibold text-sm transition-colors shadow-sm cursor-pointer"
+                disabled={cooldownSeconds > 0}
+                className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-colors shadow-sm ${
+                  cooldownSeconds > 0
+                    ? 'bg-stone-200 text-stone-500 cursor-not-allowed'
+                    : 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white cursor-pointer'
+                }`}
               >
-                <span>ሌላ ጥያቄ ላክ</span>
+                <span>
+                  {cooldownSeconds > 0
+                    ? `ሌላ ጥያቄ ለመላክ ${cooldownSeconds} ሰከንድ ይጠብቁ`
+                    : 'ሌላ ጥያቄ ላክ'}
+                </span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -150,20 +203,21 @@ export default function QuestionForm() {
                   className={`text-xs font-medium ${
                     currentChars === 0
                       ? 'text-stone-400'
-                      : currentChars < minChars
+                      : currentChars < minChars || currentChars > maxChars
                       ? 'text-red-500 font-semibold'
                       : 'text-emerald-600'
                   }`}
                 >
                   {currentChars < minChars
                     ? `ቢያንስ ${minChars} ፊደላት (${currentChars}/${minChars})`
-                    : `${currentChars} ፊደላት`}
+                    : `${currentChars}/${maxChars} ፊደላት`}
                 </span>
               </div>
               <textarea
                 id="question-input"
                 rows={4}
                 required
+                maxLength={maxChars}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="ጥያቄዎን እዚህ ጋር ይፃፉ..."
@@ -180,6 +234,7 @@ export default function QuestionForm() {
               <input
                 id="author-input"
                 type="text"
+                maxLength={50}
                 value={authorName}
                 onChange={(e) => setAuthorName(e.target.value)}
                 placeholder="ስም (አማራጭ)"
@@ -241,4 +296,3 @@ export default function QuestionForm() {
     </div>
   );
 }
-

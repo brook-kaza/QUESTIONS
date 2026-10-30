@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Lock, KeyRound, ShieldAlert, CheckCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Lock, KeyRound, ShieldAlert, ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 interface AdminPinGateProps {
@@ -17,19 +17,44 @@ export default function AdminPinGate({ onSuccess }: AdminPinGateProps) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Configured PIN or fallback default '1234'
-  const expectedPin = process.env.NEXT_PUBLIC_ADMIN_PIN || '1234';
-
-  const handlePinSubmit = (e: React.FormEvent) => {
+  const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    if (!pin.trim() || isLoading) return;
 
-    if (pin.trim() === expectedPin.trim()) {
-      sessionStorage.setItem('mikre_abew_admin_session', 'true');
-      onSuccess();
-    } else {
-      setError('የተሳሳተ የይለፍ ቃል (PIN) ነው። እባክዎ እንደገና ይሞክሩ።');
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const res = await fetch('/api/admin/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pin.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        if (data.token) {
+          sessionStorage.setItem('mikre_abew_admin_token', data.token);
+        }
+        sessionStorage.setItem('mikre_abew_admin_session', 'true');
+        onSuccess();
+        return;
+      }
+
+      setError(data.error || 'የተሳሳተ ፒን ኮድ። እባክዎ እንደገና ይሞክሩ።');
       setPin('');
+    } catch {
+      // Local development or network error fallback
+      const expectedPin = process.env.NEXT_PUBLIC_ADMIN_PIN || '1234';
+      if (pin.trim() === expectedPin.trim()) {
+        sessionStorage.setItem('mikre_abew_admin_session', 'true');
+        onSuccess();
+      } else {
+        setError('የተሳሳተ ፒን ኮድ። እባክዎ እንደገና ይሞክሩ።');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -54,6 +79,9 @@ export default function AdminPinGate({ onSuccess }: AdminPinGateProps) {
         setError('የተሳሳተ ኢሜይል ወይም የይለፍ ቃል: ' + authError.message);
       } else if (data.session) {
         sessionStorage.setItem('mikre_abew_admin_session', 'true');
+        if (data.session.access_token) {
+          sessionStorage.setItem('mikre_abew_admin_token', data.session.access_token);
+        }
         onSuccess();
       }
     } catch (err: any) {
@@ -86,7 +114,7 @@ export default function AdminPinGate({ onSuccess }: AdminPinGateProps) {
               setAuthMethod('pin');
               setError('');
             }}
-            className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
+            className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
               authMethod === 'pin'
                 ? 'bg-white text-stone-900 shadow-xs'
                 : 'text-stone-500 hover:text-stone-800'
@@ -100,7 +128,7 @@ export default function AdminPinGate({ onSuccess }: AdminPinGateProps) {
               setAuthMethod('supabase');
               setError('');
             }}
-            className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
+            className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
               authMethod === 'supabase'
                 ? 'bg-white text-stone-900 shadow-xs'
                 : 'text-stone-500 hover:text-stone-800'
@@ -130,27 +158,37 @@ export default function AdminPinGate({ onSuccess }: AdminPinGateProps) {
                 inputMode="numeric"
                 maxLength={10}
                 value={pin}
+                disabled={isLoading}
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="ለምሳሌ: 1234"
                 autoFocus
                 className="w-full text-center tracking-[0.4em] font-mono text-xl sm:text-2xl bg-stone-50 border border-stone-300 text-stone-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-600 transition-all"
               />
               <p className="mt-2 text-center text-[11px] text-stone-400">
-                (መደበኛ የሙከራ ፒን ኮድ: <span className="font-mono font-semibold text-stone-600">{expectedPin}</span>)
+                (መደበኛ ፒን ኮድ: <span className="font-mono font-semibold text-stone-600">1234</span>)
               </p>
             </div>
 
             <button
               type="submit"
-              disabled={!pin}
+              disabled={!pin || isLoading}
               className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm transition-all cursor-pointer ${
-                pin
+                pin && !isLoading
                   ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white shadow-sm'
                   : 'bg-stone-200 text-stone-400 cursor-not-allowed'
               }`}
             >
-              <span>ይግቡ</span>
-              <ArrowRight className="w-4 h-4" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>እየተረጋገጠ ነው...</span>
+                </>
+              ) : (
+                <>
+                  <span>ይግቡ</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         ) : (
@@ -203,7 +241,14 @@ export default function AdminPinGate({ onSuccess }: AdminPinGateProps) {
                   : 'bg-stone-200 text-stone-400 cursor-not-allowed'
               }`}
             >
-              {isLoading ? <span>እየገባ ነው...</span> : <span>በሱፓቤዝ ይግቡ</span>}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>እየገባ ነው...</span>
+                </>
+              ) : (
+                <span>በሱፓቤዝ ይግቡ</span>
+              )}
             </button>
           </form>
         )}
@@ -211,4 +256,3 @@ export default function AdminPinGate({ onSuccess }: AdminPinGateProps) {
     </div>
   );
 }
-

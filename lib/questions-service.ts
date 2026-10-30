@@ -4,6 +4,11 @@ import { INITIAL_SAMPLE_QUESTIONS } from './sample-data';
 
 const LOCAL_STORAGE_KEY = 'mikre_abew_questions_demo';
 
+function getAdminToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem('mikre_abew_admin_token') || null;
+}
+
 // Helper to get local fallback questions
 function getLocalQuestions(): Question[] {
   if (typeof window === 'undefined') return INITIAL_SAMPLE_QUESTIONS;
@@ -47,32 +52,49 @@ export async function submitQuestion(payload: {
     return { success: false, error: 'እባክዎ ቢያንስ 10 ፊደላት የያዘ ጥያቄ ይፃፉ።' };
   }
 
+  // First attempt via secure Server API route (provides rate limiting & server validation)
+  try {
+    const res = await fetch('/api/questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, author_name, category }),
+    });
+
+    const json = await res.json();
+    if (res.ok && json.success) {
+      if (json.demo) {
+        // Fallback demo sync
+        const current = getLocalQuestions();
+        saveLocalQuestions([json.data, ...current]);
+      }
+      return { success: true, data: json.data as Question };
+    }
+
+    if (!res.ok && json.error) {
+      return { success: false, error: json.error };
+    }
+  } catch (apiErr) {
+    console.warn('API endpoint unreachable, trying client fallback...', apiErr);
+  }
+
+  // Fallback direct to Supabase client if API route was unreachable
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('questions')
-        .insert([
-          {
-            content,
-            author_name,
-            category,
-          },
-        ])
+        .insert([{ content, author_name, category }])
         .select()
         .single();
 
-      if (error) {
-        console.error('Supabase insert error:', error);
-        return { success: false, error: error.message };
+      if (!error && data) {
+        return { success: true, data: data as Question };
       }
-
-      return { success: true, data: data as Question };
-    } catch (err: any) {
-      return { success: false, error: err?.message || 'ያልታወቀ ስህተት አጋጥሟል' };
+    } catch (sbErr) {
+      console.error('Direct Supabase insert error:', sbErr);
     }
   }
 
-  // Fallback local storage demo mode
+  // Local storage demo fallback
   const newQuestion: Question = {
     id: 'local-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
     content,
@@ -89,6 +111,28 @@ export async function submitQuestion(payload: {
 }
 
 export async function fetchQuestions(): Promise<{ data: Question[]; error?: string }> {
+  const token = getAdminToken();
+
+  // Try secure server API first if admin token is present
+  if (token) {
+    try {
+      const res = await fetch('/api/admin/questions', {
+        headers: {
+          'x-admin-token': token,
+        },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          return { data: json.data };
+        }
+      }
+    } catch (err) {
+      console.warn('Admin API fetch failed, trying direct Supabase client...', err);
+    }
+  }
+
+  // Direct Supabase client fetch
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
@@ -97,15 +141,11 @@ export async function fetchQuestions(): Promise<{ data: Question[]; error?: stri
         .order('is_starred', { ascending: false })
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.warn('Supabase fetch error, fallback to local:', error);
-        return { data: getLocalQuestions(), error: error.message };
+      if (!error && data) {
+        return { data: data as Question[] };
       }
-
-      return { data: (data as Question[]) || [] };
     } catch (err: any) {
-      console.warn('Supabase fetch exception, fallback to local:', err);
-      return { data: getLocalQuestions(), error: err?.message };
+      console.warn('Direct fetch error:', err);
     }
   }
 
@@ -114,7 +154,26 @@ export async function fetchQuestions(): Promise<{ data: Question[]; error?: stri
 
 export async function toggleQuestionAnswered(id: string, currentStatus: boolean): Promise<boolean> {
   const nextStatus = !currentStatus;
+  const token = getAdminToken();
 
+  // Try server API first
+  if (token) {
+    try {
+      const res = await fetch('/api/admin/questions', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': token,
+        },
+        body: JSON.stringify({ id, is_answered: nextStatus }),
+      });
+      if (res.ok) return true;
+    } catch (err) {
+      console.warn('Server patch failed:', err);
+    }
+  }
+
+  // Direct Supabase update
   if (isSupabaseConfigured() && supabase) {
     try {
       const { error } = await supabase
@@ -122,17 +181,13 @@ export async function toggleQuestionAnswered(id: string, currentStatus: boolean)
         .update({ is_answered: nextStatus })
         .eq('id', id);
 
-      if (error) {
-        console.error('Error toggling answered in Supabase:', error);
-        return false;
-      }
-      return true;
+      if (!error) return true;
     } catch (err) {
       console.error(err);
-      return false;
     }
   }
 
+  // Local fallback
   const list = getLocalQuestions();
   const updated = list.map((q) => (q.id === id ? { ...q, is_answered: nextStatus } : q));
   saveLocalQuestions(updated);
@@ -141,7 +196,26 @@ export async function toggleQuestionAnswered(id: string, currentStatus: boolean)
 
 export async function toggleQuestionStarred(id: string, currentStatus: boolean): Promise<boolean> {
   const nextStatus = !currentStatus;
+  const token = getAdminToken();
 
+  // Try server API first
+  if (token) {
+    try {
+      const res = await fetch('/api/admin/questions', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': token,
+        },
+        body: JSON.stringify({ id, is_starred: nextStatus }),
+      });
+      if (res.ok) return true;
+    } catch (err) {
+      console.warn('Server patch failed:', err);
+    }
+  }
+
+  // Direct Supabase update
   if (isSupabaseConfigured() && supabase) {
     try {
       const { error } = await supabase
@@ -149,17 +223,13 @@ export async function toggleQuestionStarred(id: string, currentStatus: boolean):
         .update({ is_starred: nextStatus })
         .eq('id', id);
 
-      if (error) {
-        console.error('Error toggling starred in Supabase:', error);
-        return false;
-      }
-      return true;
+      if (!error) return true;
     } catch (err) {
       console.error(err);
-      return false;
     }
   }
 
+  // Local fallback
   const list = getLocalQuestions();
   const updated = list.map((q) => (q.id === id ? { ...q, is_starred: nextStatus } : q));
   saveLocalQuestions(updated);
@@ -167,23 +237,38 @@ export async function toggleQuestionStarred(id: string, currentStatus: boolean):
 }
 
 export async function deleteQuestion(id: string): Promise<boolean> {
-  if (isSupabaseConfigured() && supabase) {
+  const token = getAdminToken();
+
+  // Try server API first
+  if (token) {
     try {
-      const { error } = await supabase.from('questions').delete().eq('id', id);
-      if (error) {
-        console.error('Error deleting question in Supabase:', error);
-        return false;
-      }
-      return true;
+      const res = await fetch('/api/admin/questions', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': token,
+        },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) return true;
     } catch (err) {
-      console.error(err);
-      return false;
+      console.warn('Server delete failed:', err);
     }
   }
 
+  // Direct Supabase delete
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { error } = await supabase.from('questions').delete().eq('id', id);
+      if (!error) return true;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  // Local fallback
   const list = getLocalQuestions();
   const updated = list.filter((q) => q.id !== id);
   saveLocalQuestions(updated);
   return true;
 }
-

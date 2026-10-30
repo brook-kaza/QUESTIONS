@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Question, FilterTab, QuestionCategory, CATEGORIES } from '@/types/question';
+import { Question, FilterTab, CATEGORIES } from '@/types/question';
 import {
   fetchQuestions,
   toggleQuestionAnswered,
@@ -14,7 +14,6 @@ import QuestionCard from './QuestionCard';
 import PresenterMode from './PresenterMode';
 import {
   Tv,
-  Radio,
   Volume2,
   VolumeX,
   Search,
@@ -27,6 +26,7 @@ import {
   HelpCircle,
   Clock,
   Filter,
+  WifiOff,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -45,6 +45,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
   const [isLiveConnected, setIsLiveConnected] = useState(false);
   const [isSupabaseReady, setIsSupabaseReady] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
   // Load initial questions
   const loadData = useCallback(async () => {
@@ -53,6 +54,29 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     setQuestions(data);
     setIsLoading(false);
   }, []);
+
+  // Online / Offline listener
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsOnline(navigator.onLine);
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      loadData();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setIsLiveConnected(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [loadData]);
 
   useEffect(() => {
     loadData();
@@ -210,10 +234,17 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
                 </span>
               </h1>
               <div className="flex items-center gap-2 text-xs">
-                <span className="inline-flex items-center gap-1.5 text-emerald-700 font-medium">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 live-pulse" />
-                  <span>{isLiveConnected ? 'ቀጥታ ስርጭት በርቷል' : 'የቀጥታ ግንኙነት በመጠባበቅ ላይ'}</span>
-                </span>
+                {isOnline ? (
+                  <span className="inline-flex items-center gap-1.5 text-emerald-700 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 live-pulse" />
+                    <span>{isLiveConnected ? 'ቀጥታ ስርጭት በርቷል' : 'የቀጥታ ግንኙነት በመጠባበቅ ላይ'}</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-red-600 font-semibold">
+                    <WifiOff className="w-3.5 h-3.5" />
+                    <span>ከመስመር ውጭ (Offline)</span>
+                  </span>
+                )}
                 {!isSupabaseReady && (
                   <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-mono">
                     የሙከራ ሁነታ (Demo Mode)
@@ -500,4 +531,3 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
     </div>
   );
 }
-
