@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     const expectedPin =
       process.env.ADMIN_PIN?.trim() ||
       process.env.NEXT_PUBLIC_ADMIN_PIN?.trim() ||
-      '1234';
+      '2223';
 
     // Constant-time comparison to prevent timing attacks
     const pinBuffer = Buffer.from(pin);

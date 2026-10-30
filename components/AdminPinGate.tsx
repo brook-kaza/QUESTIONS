@@ -46,7 +46,7 @@ export default function AdminPinGate({ onSuccess }: AdminPinGateProps) {
       setPin('');
     } catch {
       // Local development or network error fallback
-      const expectedPin = process.env.NEXT_PUBLIC_ADMIN_PIN || '1234';
+      const expectedPin = process.env.NEXT_PUBLIC_ADMIN_PIN || '2223';
       if (pin.trim() === expectedPin.trim()) {
         sessionStorage.setItem('mikre_abew_admin_session', 'true');
         onSuccess();
@@ -160,12 +160,12 @@ export default function AdminPinGate({ onSuccess }: AdminPinGateProps) {
                 value={pin}
                 disabled={isLoading}
                 onChange={(e) => setPin(e.target.value)}
-                placeholder="ለምሳሌ: 1234"
+                placeholder="ለምሳሌ: 2223"
                 autoFocus
                 className="w-full text-center tracking-[0.4em] font-mono text-xl sm:text-2xl bg-stone-50 border border-stone-300 text-stone-900 rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-600 transition-all"
               />
               <p className="mt-2 text-center text-[11px] text-stone-400">
-                (መደበኛ ፒን ኮድ: <span className="font-mono font-semibold text-stone-600">1234</span>)
+                (መደበኛ ፒን ኮድ: <span className="font-mono font-semibold text-stone-600">2223</span>)
               </p>
             </div>
 

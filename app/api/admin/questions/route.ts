@@ -14,7 +14,7 @@ function isValidAdmin(req: NextRequest): boolean {
     const expected =
       process.env.ADMIN_PIN?.trim() ||
       process.env.NEXT_PUBLIC_ADMIN_PIN?.trim() ||
-      '1234';
+      '2223';
     if (directPin && directPin === expected) return true;
     return false;
   }
@@ -35,7 +35,7 @@ function isValidAdmin(req: NextRequest): boolean {
   const expectedPin =
     process.env.ADMIN_PIN?.trim() ||
     process.env.NEXT_PUBLIC_ADMIN_PIN?.trim() ||
-    '1234';
+    '2223';
   const secret = process.env.ADMIN_SECRET || expectedPin + '-session-secret-salt';
 
   const expectedSig1 = crypto

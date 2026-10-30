@@ -23,7 +23,7 @@
   - ስኬታማ መልዕክትና የበዓል ኮንፌቲ ("ጥያቄዎ ገብቷል! በመድረክ ይመለሳል።")
 
 ### 2. የአስተባባሪዎች እና የመድረክ ዳሽቦርድ (`/admin`):
-- **የተጠበቀ መግቢያ:** በፈጣን ፒን ኮድ (`ADMIN_PIN`፣ መደበኛ `1234`) ወይም በሱፓቤዝ መለያ (Supabase Auth)።
+- **የተጠበቀ መግቢያ:** በፈጣን ፒን ኮድ (`ADMIN_PIN`፣ መደበኛ `2223`) ወይም በሱፓቤዝ መለያ (Supabase Auth)።
 - **የቀጥታ ስርጭት (Supabase Realtime Sync):** ተሳታፊዎች ከስልካቸው የላኩት ጥያቄ ገጹን ዳግም መጫን (refresh) ሳያስፈልግ በቅጽበት በዳሽቦርዱ ላይ ይወጣል።
 - **የድምፅ ማሳወቂያ (Audio Chime):** አዲስ ጥያቄ ሲገባ የሚሰማ ለስላሳ የድምፅ ማሳወቂያ (ማብሪያ/ማጥፊያ ያለው)።
 - **የማጣሪያ ክፍሎች (Filter Tabs):**
@@ -102,7 +102,7 @@ git push origin main
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | የሱፓቤዝ ፕሮጀክት አድራሻ | `https://xyzproject.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | የሱፓቤዝ አኖኒመስ ቁልፍ | `eyJhbGciOi...` |
-| `NEXT_PUBLIC_ADMIN_PIN` | ለአስተባባሪዎች የሚሰጥ ፒን ኮድ | `1234` |
+| `NEXT_PUBLIC_ADMIN_PIN` | ለአስተባባሪዎች የሚሰጥ ፒን ኮድ | `2223` |
 
 4. **Deploy** የሚለውን ይጫኑ። በ 1 ደቂቃ ውስጥ ድረ-ገጹ በቀጥታ ይሰራጫል!
 
